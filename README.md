@@ -28,14 +28,25 @@ See `CLAUDE.md` for the rules and the verification suites.
 
 ## Deployment
 
-Pushing `dev` or `main` runs `.github/workflows/deploy.yml`: verify (typecheck, combat and asset suites, the client
-build and the 12 MB budget), then the server image to GHCR rolled on Legion (`anime-ability-arena`, seatCap 15),
-then the client to Bloxity Hosting.
+Pushing `dev` or `main` runs `.github/workflows/deploy.yml`, in order:
 
-| Channel | Branch | Client | Server |
-|---|---|---|---|
-| DEV | `dev` | https://anime-ability-arena.dev.play.bloxity.io | `wss://anime-ability-arena.dev.host.bloxity.io` |
-| PROD | `main` | https://anime-ability-arena.play.bloxity.io | `wss://anime-ability-arena.host.bloxity.io` |
+1. **verify** - typecheck, the combat/asset suites, the client build with this channel's backend URL baked in,
+   the 12 MB budget, and the client zip (`index.html` at the archive root).
+2. **server** - the Docker image (`Dockerfile`, built from the repo root) pushed to
+   `ghcr.io/<owner>/anime-ability-arena-server:<channel>-<sha>` and rolled on Legion
+   (`POST https://legion.bloxity.io/v1/apps/anime-ability-arena/deploy`, seatCap 15, maxReplicas 5,
+   version = the commit SHA).
+3. **frontend** - the zip uploaded to `POST https://api.bloxity.io/v1/hosting/games/anime-ability-arena/frontend`
+   (version = the same commit SHA), only after the server rolled.
 
-Make the GHCR package `anime-ability-arena-server` public (GitHub → Packages → Package settings), so Legion can pull
-the image.
+| Channel | Branch | Client | Backend (WebSocket) | Health |
+|---|---|---|---|---|
+| DEV | `dev` | https://anime-ability-arena.dev.play.bloxity.io | `wss://anime-ability-arena.dev.host.bloxity.io` | https://anime-ability-arena.dev.host.bloxity.io/health |
+| PROD | `main` | https://anime-ability-arena.play.bloxity.io | `wss://anime-ability-arena.host.bloxity.io` | https://anime-ability-arena.host.bloxity.io/health |
+
+One secret: `LEGION_DEPLOY_TOKEN` (Settings → Secrets and variables → Actions), copied from My Games on
+hosting.bloxity.io. The image is pushed with the built-in `GITHUB_TOKEN`. After the FIRST push, make the GHCR package
+`anime-ability-arena-server` public (GitHub → Packages → Package settings → Change visibility) so Legion can pull it,
+then re-run the workflow.
+
+Check the Docker build context without Docker: `npm run verify:docker` (`STAGE_DIR=<dir>` also copies the context out).

@@ -16,19 +16,31 @@
 # can be a pair that cannot talk to each other. Nothing publishes at all unless
 # every check passed.
 #
-# Both routes below are the ones documented at https://hosting.bloxity.io/docs
-# ("POST https://legion.bloxity.io/v1/apps/<gameId>/deploy" with
-# {channel, image, version, seatCap, maxReplicas}, and
-# "POST https://api.bloxity.io/v1/hosting/games/<gameId>/frontend?channel=&version="
-# with the zip as the raw body), and both were checked against the live API
-# on 2026-09-24, before being written here, with unauthenticated requests:
+# Both routes below are copied from https://hosting.bloxity.io/docs as read on
+# 2026-09-25 (sections 3 and 4):
 #
-#   POST https://legion.bloxity.io/v1/apps/anime-ability-arena/deploy         -> 401
-#   POST https://api.bloxity.io/v1/hosting/games/anime-ability-arena/frontend -> 401
+#   POST https://legion.bloxity.io/v1/apps/<gameId>/deploy
+#        Authorization: Bearer $LEGION_DEPLOY_TOKEN, JSON body
+#        {"channel","image","version","seatCap","maxReplicas"}
+#   POST https://api.bloxity.io/v1/hosting/games/<gameId>/frontend?channel=<ch>&version=<sha>
+#        Authorization: Bearer $LEGION_DEPLOY_TOKEN, Content-Type: application/zip,
+#        the zip as the raw body (--data-binary)
+#
+# and both were probed the same day for THIS game id with unauthenticated
+# requests (nothing is deployed by a request with no token):
+#
+#   POST legion.bloxity.io/v1/apps/anime-ability-arena/deploy               -> 401 unauthorized
+#   POST api.bloxity.io/v1/hosting/games/anime-ability-arena/frontend?...   -> 401 unauthorized
+#   POST legion.bloxity.io/v1/apps/anime-ability-arena/client   (control)   -> 404 route not found
+#   POST api.bloxity.io/v1/hosting/games/anime-ability-arena/client (ctrl)  -> 404 route not found
 #
 # 401 rather than 404 is the point: it proves the route EXISTS without
-# deploying anything. An invented "/client" neighbour of each answers 404 on
-# both hosts, so the 401s mean something. Nothing in this file is a guess.
+# deploying anything, and the invented "/client" neighbours prove a 404 is what
+# a route that does not exist returns. Nothing in this file is a guess.
+#
+# The image contract from the same docs, which the Dockerfile meets: listen on
+# the injected PORT, answer GET /health with 200 quickly, run as non-root, and
+# (recommended) drain on SIGTERM.
 #
 # The docs do not describe the zip's layout. This workflow zips the CONTENTS
 # of client/dist, so index.html sits at the archive root (checked below), the
