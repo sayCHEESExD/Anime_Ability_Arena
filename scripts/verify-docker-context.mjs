@@ -12,9 +12,11 @@
  * files it asks for.
  *
  *   node scripts/verify-docker-context.mjs
+ *   STAGE_DIR=/tmp/ctx node scripts/verify-docker-context.mjs   # also copy the context out,
+ *                                                               # to run the Dockerfile's steps without Docker
  */
-import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, relative, sep } from 'node:path';
+import { copyFileSync, mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -115,7 +117,7 @@ for (const manifest of manifests) check(inContext.has(manifest), `${manifest}`);
 
 // What must NOT be shipped: the host's modules, stale builds, the art the server never opens.
 console.log('\nKept out of the context:');
-for (const path of ['node_modules/three/package.json', 'shared/dist/index.js', 'assets/audio/Background.mp3', 'client/src/main.ts', 'server/data/profiles.json']) {
+for (const path of ['node_modules/three/package.json', 'shared/dist/index.js', 'assets/audio/music.mp3', 'client/src/main.ts', 'server/data/profiles.json']) {
   const present = inContext.has(path);
   if (path.startsWith('server/data') && !present) {
     console.log(`  ok    ${path} (absent here anyway)`);
@@ -125,6 +127,16 @@ for (const path of ['node_modules/three/package.json', 'shared/dist/index.js', '
 }
 
 check(bytes < 12 * 1024 * 1024, `the context stays small (${(bytes / 1024 / 1024).toFixed(2)} MB)`);
+
+const stage = process.env.STAGE_DIR;
+if (stage) {
+  for (const path of context) {
+    const target = join(stage, ...path.split('/'));
+    mkdirSync(dirname(target), { recursive: true });
+    copyFileSync(join(root, ...path.split('/')), target);
+  }
+  console.log(`\nstaged the ${context.length}-file context in ${stage}`);
+}
 
 if (failures > 0) {
   console.log(`\n${failures} docker context problem(s).`);
