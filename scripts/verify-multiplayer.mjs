@@ -49,7 +49,8 @@ class Bot {
 
   async join() {
     this.client = new Client(ENDPOINT);
-    this.room = await this.client.joinOrCreate(S.ROOM_NAME, { playerId: this.playerId, identity: { displayName: this.name, avatarUrl: '' } });
+    // testNoBots: a deterministic room (honoured outside production only).
+    this.room = await this.client.joinOrCreate(S.ROOM_NAME, { playerId: this.playerId, identity: { displayName: this.name, avatarUrl: '' }, testNoBots: true });
     for (const type of Object.values(S.MessageType)) {
       this.messages[type] = [];
       this.room.onMessage(type, (message) => this.messages[type].push({ at: Date.now(), ...message }));
@@ -359,8 +360,15 @@ const board = A2.room.state.leaderboard;
 const handle = S.handleFor(`verify-a-${stamp}`);
 const killsRow = [...board.kills].find((row) => row.handle === handle);
 const damageRow = [...board.damage].find((row) => row.handle === handle);
-check(killsRow && killsRow.value === saved.kills, `Most Kills board shows Alpha with ${killsRow?.value}`);
-check(damageRow && damageRow.value === saved.damage, `Most Damage board shows Alpha with ${damageRow?.value}`);
+// The boards are global (every stored profile, fill-in players included): Alpha is either
+// on a board with the right number, or honestly outranked by a full board.
+const onBoard = (rows, row, value, label) => {
+  const filled = [...rows].filter((r) => r.handle);
+  const outranked = !row && filled.length === S.LEADERBOARD_SIZE && filled.every((r) => r.value >= value);
+  check((row && row.value === value) || outranked, row ? `${label} board shows Alpha with ${row.value}` : `${label} board is full of higher scores than Alpha's ${value}`);
+};
+onBoard(board.kills, killsRow, saved.kills, 'Most Kills');
+onBoard(board.damage, damageRow, saved.damage, 'Most Damage');
 
 await A2.leave();
 await B.leave();

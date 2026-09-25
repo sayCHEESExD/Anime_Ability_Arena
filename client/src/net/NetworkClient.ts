@@ -9,6 +9,7 @@ import {
   type KitMessage,
   type MoveMessage,
   type NoticeMessage,
+  type PeerMessage,
   type ProjectileEndMessage,
   type ProjectileMessage,
   type RefusedMessage,
@@ -77,6 +78,7 @@ export interface NetworkHandlers {
   onZone?(message: ZoneMessage): void;
   onZoneEnd?(message: ZoneEndMessage): void;
   onFx?(message: FxMessage): void;
+  onPeer?(message: PeerMessage): void;
 }
 
 /**
@@ -296,6 +298,7 @@ export class NetworkClient {
     on<ZoneMessage>(MessageType.Zone, (m) => this.handlers.onZone?.(m));
     on<ZoneEndMessage>(MessageType.ZoneEnd, (m) => this.handlers.onZoneEnd?.(m));
     on<FxMessage>(MessageType.Fx, (m) => this.handlers.onFx?.(m));
+    on<PeerMessage>(MessageType.Peer, (m) => this.handlers.onPeer?.(m));
     on<AuthStateMessage>(MessageType.AuthState, (m) => {
       logger.info(SCOPE, `playing as ${m.status}${m.note ? ` (${m.note})` : ''}`);
       this.handlers.onAuthState?.(m);

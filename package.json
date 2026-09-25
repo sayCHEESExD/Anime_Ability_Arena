@@ -30,7 +30,8 @@
     "verify:persistence": "npm run build:server && node scripts/verify-persistence.mjs",
     "verify:multiplayer": "node scripts/verify-multiplayer.mjs",
     "verify:combat": "npm run build:server && node scripts/verify-combat.mjs",
-    "bot": "node scripts/bot.mjs"
+    "bot": "node scripts/bot.mjs",
+    "verify:bots": "node scripts/verify-bots.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",

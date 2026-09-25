@@ -230,6 +230,12 @@ export class CombatService {
     this.syncDerived(p, f);
   }
 
+  /** Seconds until a slot (1 attack, 2 skill, 3 ultimate) is ready, by the server clock. Read-only, for bots. */
+  readyIn(sid: string, slot: number): number {
+    const f = this.fighters.get(sid);
+    return f ? Math.max(0, (f.ready[slot] ?? 0) - now()) : 0;
+  }
+
   /** Seconds since this player was last hit by someone (for the reset rule). */
   sinceHit(sid: string): number {
     const f = this.fighters.get(sid);

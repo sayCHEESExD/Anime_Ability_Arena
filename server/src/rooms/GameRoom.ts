@@ -20,6 +20,7 @@ import {
   type AuthStateMessage,
   type AuthStatus,
   type KitMessage,
+  type PeerMessage,
   type MoveMessage,
   type NoticeMessage,
   type Placement,
@@ -31,6 +32,7 @@ import {
   type SimEvents,
 } from '@arena/shared';
 import { tokenHash, verifyGameToken } from '../auth/BloxityAuth.js';
+import { BotManager } from '../bots/BotManager.js';
 import { CombatService, type CombatHost } from '../combat/CombatService.js';
 import { serverConfig } from '../config/serverConfig.js';
 import { MovementService } from '../movement/MovementService.js';
@@ -73,6 +75,8 @@ interface JoinOptions {
   token?: string | null;
   avatar?: SetAvatarMessage;
   identity?: SetIdentityMessage;
+  /** Test-only (ignored in production): keep this room free of fill-in players. */
+  testNoBots?: boolean;
 }
 
 /** What `onAuth` resolves and hands to `onJoin`. */
@@ -126,6 +130,9 @@ export class GameRoom extends Room<GameState> {
 
   readonly movement = new MovementService();
   private combat!: CombatService;
+  private bots!: BotManager;
+  /** Fill-ins are off for this room (config, or a test join outside production). */
+  private botsOff = !serverConfig.bots;
 
   /** Session id -> the profile key it currently plays on. The boards read it. */
   private readonly playerIds = new Map<string, string>();
@@ -143,7 +150,10 @@ export class GameRoom extends Room<GameState> {
         return room.state;
       },
       movement: this.movement,
-      broadcast: (type, message) => this.broadcast(type, message),
+      broadcast: (type, message) => {
+        this.broadcast(type, message);
+        this.bots.observe(type, message);
+      },
       sendTo: (sid, type, message) => this.clientOf(sid)?.send(type, message),
       persist: (sid) => {
         const player = this.state.players.get(sid);
@@ -152,6 +162,50 @@ export class GameRoom extends Room<GameState> {
       respawnAfterDeath: (sid) => this.placeInLobby(sid, 'death'),
     };
     this.combat = new CombatService(host);
+    this.bots = new BotManager({
+      get state() {
+        return room.state;
+      },
+      movement: this.movement,
+      combat: this.combat,
+      realPlayers: () => this.state.players.size - this.bots.count,
+      seatBot: (sid, persona, profile, look, kit) => {
+        const player = new PlayerState();
+        player.sessionId = sid;
+        profileStore.applyTo(player, profile);
+        player.displayName = persona.name;
+        player.avatarUrl = '';
+        if (!player.ownedKits.includes(kit)) player.ownedKits.push(kit);
+        player.kit = kit;
+        player.avatar.apply(look.appearance, look.proportions);
+        this.state.players.set(sid, player);
+        this.initialiseServices(sid, player);
+        this.playerIds.set(sid, persona.key);
+        this.placeInLobby(sid, 'join');
+      },
+      unseatBot: (sid) => {
+        this.combat.remove(sid);
+        this.state.players.delete(sid);
+        this.movement.forget(sid);
+        this.playerIds.delete(sid);
+      },
+      stepBot: (sid, message) => {
+        const player = this.state.players.get(sid);
+        if (!player) return;
+        const events = this.movement.applyInput(player, message, (act, aim, motion) => this.combat.tryCast(sid, act, aim, motion));
+        if (events) this.afterMotion(sid, player, events);
+      },
+      enterArena: (sid) => {
+        const player = this.state.players.get(sid);
+        if (player && !player.dead && player.zone === 'lobby') this.placeInArena(sid);
+      },
+      equipBot: (sid, kit) => {
+        const player = this.state.players.get(sid);
+        if (!player) return;
+        if (!player.ownedKits.includes(kit)) player.ownedKits.push(kit);
+        this.equip(player, kit);
+      },
+    });
 
     this.onMessage(MessageType.Move, (client, message: MoveMessage) => this.onMove(client, message));
     this.onMessage(MessageType.BuyKit, (client, message: KitMessage) => this.onBuyKit(client, message));
@@ -218,6 +272,13 @@ export class GameRoom extends Room<GameState> {
     profileStore.applyTo(player, resolved.profile);
     this.state.players.set(client.sessionId, player);
     this.initialiseServices(client.sessionId, player);
+    if (options.testNoBots === true && serverConfig.allowTestOptions && !this.botsOff) {
+      this.botsOff = true;
+      this.bots.dispose();
+    }
+    // A real player always gets a seat: a fill-in leaves at once if the room is full.
+    this.bots.enforceCapacity();
+    this.introducePeer(client);
 
     if (options.avatar) this.writeAvatar(player, options.avatar);
     if (options.identity) {
@@ -254,6 +315,7 @@ export class GameRoom extends Room<GameState> {
   }
 
   override async onDispose(): Promise<void> {
+    this.bots.dispose();
     const saves: Promise<void>[] = [];
     for (const [sessionId, player] of this.state.players) {
       const key = this.sessions.get(sessionId)?.key;
@@ -427,6 +489,21 @@ export class GameRoom extends Room<GameState> {
   private sendAuthState(client: Client, status: AuthStatus, note?: string): void {
     const message: AuthStateMessage = note ? { status, note } : { status };
     client.send(MessageType.AuthState, message);
+  }
+
+  /**
+   * Tell a newcomer who the real players are, and them about the newcomer.
+   * Only real players are reported to the Bloxity portal's presence calls, so
+   * fill-ins never inflate the portal's view of who is playing.
+   */
+  private introducePeer(client: Client): void {
+    for (const other of this.clients) {
+      if (other.sessionId === client.sessionId) continue;
+      const toNew: PeerMessage = { sid: other.sessionId };
+      client.send(MessageType.Peer, toNew);
+      const toOld: PeerMessage = { sid: client.sessionId };
+      other.send(MessageType.Peer, toOld);
+    }
   }
 
   private clientOf(sessionId: string): Client | undefined {
@@ -616,6 +693,7 @@ export class GameRoom extends Room<GameState> {
       if (events) this.afterMotion(sessionId, player, events);
       if (player.ready) player.playSeconds += delta;
     }
+    if (!this.botsOff) this.bots.update(delta);
     this.combat.tick(delta);
     leaderboardService.update(delta, this.state.leaderboard, this.state.players, this.playerIds);
     this.tickSessions();

@@ -63,7 +63,7 @@ for (let i = 0; i < TOTAL; i += 1) {
   try {
     // The same call the game client makes. Testing a different join path would
     // prove something about a path no player ever takes.
-    const room = await client.joinOrCreate(ROOM_NAME, { playerId: `capacity-probe-${i}` });
+    const room = await client.joinOrCreate(ROOM_NAME, { playerId: `capacity-probe-${i}`, testNoBots: true });
     joined.push(room);
     rooms.set(room.roomId, (rooms.get(room.roomId) ?? 0) + 1);
   } catch (error) {

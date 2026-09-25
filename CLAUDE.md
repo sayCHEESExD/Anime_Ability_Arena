@@ -15,6 +15,7 @@ npm run verify              # verify:combat (all 30 abilities, rules, arena walk
 npm run verify:multiplayer  # needs a running server: the whole loop, spawn -> portal -> fight -> kill -> respawn -> buy/equip
 npm run verify:capacity     # needs a running server on :2601; expects 15-per-room routing
 npm run verify:persistence  # identity/storage/migration/purchases/outages, JSON and Mongo (if mongod is found)
+npm run verify:bots          # needs a running server: fill-in bots arrive/fight/leave with population (~3 min)
 npm run size:client         # client/dist size against the 12 MB budget (currently ~5.5 MB)
 npm run bot                 # a sparring bot in the arena (MODE=fight COUNT=3 X= Z= to vary)
 ```
@@ -70,6 +71,18 @@ Per-key storage (`server/src/persistence/`), Mongo via `MONGODB_URI` else JSON (
 Bloxity token verified server-side, guest -> account migration. There is NO in-game store (removed at the user's
 request); the server still accepts Bloxity Bux grant webhooks (`yen_small` 2,500¥, `yen_large` 25,000¥), unused. Profile: `yen, lifetimeYen, kills, deaths, damage, bestStreak, ownedKits, kit, playSeconds`.
 Boards rank lifetime kills and damage.
+
+## Fill-in bots (`server/src/bots/`)
+
+Server-side players that keep low-population rooms busy. `BotManager` targets [0,5,5,4,4,2,2,1] bots for 0-7 real
+players, 0 at 8+, never above 15 total (`enforceCapacity` on every join, so a real player always gets a seat); one
+joins every 3-8 s, one leaves every 4-9 s (idle / lobby / far from real players first). A bot is a plain
+`PlayerState` stepped through the SAME `MovementService` + `CombatService.tryCast` as a client's Move messages
+(`BotBrain` produces the intent; perception is a delayed position history = reaction time). Personas
+(`BotPersonas.ts`): normal names, style (aggressive/ranged/defensive/balanced), skill, real Bloxity catalogue looks;
+stats persist under `bot_<name>` and show on the boards. Nothing in the state marks a bot: clients learn who is
+REAL from the `peer` message (used for Bloxity presence only). `ARENA_BOTS=0` turns them off; tests join with
+`testNoBots: true` (honoured only outside production) or spawn servers with `ARENA_BOTS=0`.
 
 ## Testing in the in-app browser
 

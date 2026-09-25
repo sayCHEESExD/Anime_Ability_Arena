@@ -162,6 +162,8 @@ const startServer = async ({ dataDir, mongoUri = '', port = PORT, slug = GAME_SL
       HOST: '127.0.0.1',
       PORT: '',
       POD_NAME: `test-pod-${port}`,
+      // Deterministic rooms: no fill-in players.
+      ARENA_BOTS: '0',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });

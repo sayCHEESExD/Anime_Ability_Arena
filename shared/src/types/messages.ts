@@ -23,6 +23,11 @@ export interface MoveMessage {
   aim?: number;
 }
 
+/** Server -> client: a real player in the room (sent on join, for each one already there, and for each newcomer). */
+export interface PeerMessage {
+  sid: string;
+}
+
 export interface KitMessage {
   kit: string;
 }

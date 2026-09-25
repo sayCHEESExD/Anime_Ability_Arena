@@ -63,6 +63,8 @@ export const MessageType = {
   Respawn: 'respawn',
   /** Client -> server: "put me back on the spawn island" (refused while in a fight). */
   RequestRespawn: 'requestRespawn',
+  /** Server -> client: this session is a real, connected player (for the portal's presence calls). */
+  Peer: 'peer',
   /** Server -> client: the outcome of a request, for feedback. */
   Notice: 'notice',
   /** Client -> server: "this is what my Bloxity avatar looks like". */

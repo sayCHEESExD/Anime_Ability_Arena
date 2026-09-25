@@ -217,6 +217,11 @@ export class Game {
         this.castFx?.sound('boom', m.x, m.z, 0.7);
       },
       onFx: (m) => this.onFx(m),
+      // The portal's presence calls, for real players only (the server says which are).
+      onPeer: (m) => {
+        this.bloxity.playerJoined(m.sid);
+        this.bloxity.playerInRoom(m.sid);
+      },
     });
     this.network.setTokenProvider(() => this.bloxity.getToken());
     this.network.setLookProvider(() => lookFromLegion(this.bloxity.getEquipped(), this.bloxity.getProportions()));
@@ -704,8 +709,6 @@ export class Game {
       return;
     }
     this.remotePlayers.add(sessionId, state);
-    this.bloxity.playerJoined(sessionId);
-    this.bloxity.playerInRoom(sessionId);
   }
 
   private onPlayerChanged(sessionId: string, state: NetPlayerState): void {

@@ -34,6 +34,13 @@ export interface ServerConfig {
    * production: without one the endpoint grants Wins to anyone who finds it.
    */
   readonly buxWebhookSecret: string;
+  /**
+   * Fill quiet rooms with server-run players. On unless ARENA_BOTS=0 (the
+   * verification suites turn it off to get deterministic rooms).
+   */
+  readonly bots: boolean;
+  /** Test-only join options (e.g. a room without bots) are honoured outside production only. */
+  readonly allowTestOptions: boolean;
 }
 
 const int = (value: string | undefined, fallback: number): number => {
@@ -68,4 +75,6 @@ export const serverConfig: ServerConfig = {
   gameSlug: (process.env['BLOXITY_GAME_ID'] ?? '').trim() || DEFAULT_BLOXITY_GAME_SLUG,
   podName: (process.env['POD_NAME'] ?? '').trim() || `${hostname()}:${process.pid}`,
   buxWebhookSecret: process.env['BLOXITY_WEBHOOK_SECRET'] ?? '',
+  bots: (process.env['ARENA_BOTS'] ?? '1') !== '0',
+  allowTestOptions: process.env['NODE_ENV'] !== 'production',
 };
