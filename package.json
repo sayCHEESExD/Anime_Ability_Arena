@@ -1,0 +1,42 @@
+{
+  "name": "anime-ability-arena",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Anime Ability Arena - browser multiplayer grass-cutting progression game (Three.js + Colyseus)",
+  "type": "module",
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "workspaces": [
+    "shared",
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "build:shared": "npm run build --workspace @arena/shared",
+    "dev": "npm run build:shared && concurrently -n server,client -c magenta,cyan \"npm:dev:server\" \"npm:dev:client\"",
+    "dev:server": "npm run dev --workspace @arena/server",
+    "dev:client": "npm run dev --workspace @arena/client",
+    "build": "npm run build:shared && npm run build --workspace @arena/server && npm run build --workspace @arena/client",
+    "build:client": "npm run build:shared && npm run build --workspace @arena/client",
+    "build:server": "npm run build:shared && npm run build --workspace @arena/server",
+    "typecheck": "npm run build:shared && npm run typecheck --workspaces --if-present",
+    "start": "npm run start --workspace @arena/server",
+    "verify:assets": "node scripts/verify-assets.mjs",
+    "verify:docker": "node scripts/verify-docker-context.mjs",
+    "size:client": "node scripts/build-size.mjs",
+    "verify": "npm run verify:combat && npm run verify:assets",
+    "verify:capacity": "node scripts/verify-capacity.mjs",
+    "verify:persistence": "npm run build:server && node scripts/verify-persistence.mjs",
+    "verify:multiplayer": "node scripts/verify-multiplayer.mjs",
+    "verify:combat": "npm run build:server && node scripts/verify-combat.mjs",
+    "bot": "node scripts/bot.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "@colyseus/core": "0.16.24"
+  }
+}
